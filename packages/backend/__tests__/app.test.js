@@ -9,10 +9,10 @@ afterAll(() => {
 });
 
 // Test helpers
-const createItem = async (name = 'Temp Item to Delete') => {
+const createItem = async (name = 'Temp Item to Delete', due_date = null) => {
   const response = await request(app)
     .post('/api/items')
-    .send({ name })
+    .send({ name, due_date })
     .set('Accept', 'application/json');
 
   expect(response.status).toBe(201);
@@ -33,6 +33,7 @@ describe('API Endpoints', () => {
       const item = response.body[0];
       expect(item).toHaveProperty('id');
       expect(item).toHaveProperty('name');
+      expect(item).toHaveProperty('due_date');
       expect(item).toHaveProperty('created_at');
     });
   });
@@ -48,7 +49,20 @@ describe('API Endpoints', () => {
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('id');
       expect(response.body.name).toBe(newItem.name);
+      expect(response.body).toHaveProperty('due_date');
       expect(response.body).toHaveProperty('created_at');
+    });
+
+    it('should create a new item with a due date', async () => {
+      const newItem = { name: 'Task with due date', due_date: '2026-12-31' };
+      const response = await request(app)
+        .post('/api/items')
+        .send(newItem)
+        .set('Accept', 'application/json');
+
+      expect(response.status).toBe(201);
+      expect(response.body.name).toBe(newItem.name);
+      expect(response.body.due_date).toBe('2026-12-31');
     });
 
     it('should return 400 if name is missing', async () => {
@@ -95,6 +109,73 @@ describe('API Endpoints', () => {
 
     it('should return 400 for invalid id', async () => {
       const response = await request(app).delete('/api/items/abc');
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Valid item ID is required');
+    });
+  });
+
+  describe('PUT /api/items/:id', () => {
+    it('should update an existing item name', async () => {
+      const item = await createItem('Original Name');
+      const response = await request(app)
+        .put(`/api/items/${item.id}`)
+        .send({ name: 'Updated Name' })
+        .set('Accept', 'application/json');
+
+      expect(response.status).toBe(200);
+      expect(response.body.name).toBe('Updated Name');
+      expect(response.body.id).toBe(item.id);
+    });
+
+    it('should update an existing item with a due date', async () => {
+      const item = await createItem('Task');
+      const response = await request(app)
+        .put(`/api/items/${item.id}`)
+        .send({ name: 'Task', due_date: '2026-06-15' })
+        .set('Accept', 'application/json');
+
+      expect(response.status).toBe(200);
+      expect(response.body.due_date).toBe('2026-06-15');
+    });
+
+    it('should clear a due date when null is sent', async () => {
+      const item = await createItem('Task with due date', '2026-06-15');
+      const response = await request(app)
+        .put(`/api/items/${item.id}`)
+        .send({ name: 'Task with due date', due_date: null })
+        .set('Accept', 'application/json');
+
+      expect(response.status).toBe(200);
+      expect(response.body.due_date).toBeNull();
+    });
+
+    it('should return 404 when item does not exist', async () => {
+      const response = await request(app)
+        .put('/api/items/999999')
+        .send({ name: 'Does not matter' })
+        .set('Accept', 'application/json');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Item not found');
+    });
+
+    it('should return 400 if name is missing', async () => {
+      const item = await createItem('Some Item');
+      const response = await request(app)
+        .put(`/api/items/${item.id}`)
+        .send({})
+        .set('Accept', 'application/json');
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Item name is required');
+    });
+
+    it('should return 400 for invalid id', async () => {
+      const response = await request(app)
+        .put('/api/items/abc')
+        .send({ name: 'Test' })
+        .set('Accept', 'application/json');
+
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('error', 'Valid item ID is required');
     });
